@@ -9,7 +9,7 @@ use super::{HashDigest, stable::SliceOfHashDigest};
 // ============================== 文件数据 ==============================
 
 // 单个文件数据
-#[derive(CandidType, Serialize, Deserialize, Debug, Clone, Default)]
+#[derive(CandidType, Serialize, Deserialize, Debug, Clone)]
 pub struct AssetData {
     // 堆内存无数据，存放在稳定内存了
 }

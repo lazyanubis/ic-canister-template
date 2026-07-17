@@ -167,18 +167,18 @@ impl InnerState {
         // 2. 清除 hashes 和无引用的 assets
         self.clean_hash_path(file.hash, &file.path, file.size);
     }
+    fn query_file(file: &AssetFile) -> QueryFile {
+        QueryFile {
+            path: file.path.clone(),
+            size: file.size,
+            headers: file.headers.clone(),
+            created: file.created,
+            modified: file.modified,
+            hash: file.hash.hex(),
+        }
+    }
     pub fn files(&self) -> Vec<QueryFile> {
-        self.files
-            .iter()
-            .map(|(path, file)| QueryFile {
-                path: path.to_string(),
-                size: file.size,
-                headers: file.headers.clone(),
-                created: file.created,
-                modified: file.modified,
-                hash: file.hash.hex(),
-            })
-            .collect()
+        self.files.values().map(Self::query_file).collect()
     }
     pub fn download(&self, path: String) -> Vec<u8> {
         use ic_canister_kit::common::trap;
@@ -459,7 +459,7 @@ mod tests {
         let mut state = InnerState::default();
         let path = "/asset.bin".to_string();
         let hash = HashDigest([1; 32]);
-        state.assets.insert(hash, AssetData::default());
+        state.assets.insert(hash, AssetData {});
         state.files.insert(
             path.clone(),
             AssetFile {
