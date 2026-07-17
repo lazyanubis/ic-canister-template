@@ -15,8 +15,6 @@ fi
 
 if [ ! -f "sources/source_opt_0_0_1.wasm.gz" ]; then
     cp sources/source_opt.wasm.gz sources/source_opt_0_0_1.wasm.gz
-
-
 fi
 
 if [ "$1" = "update" ]; then
@@ -35,7 +33,6 @@ cargo test test_upgrade -- --ignored
 cargo test test_common_apis -- --ignored
 cargo test test_business_apis -- --ignored
 cargo test test_asset_and_http_regressions -- --ignored
-
 
 end_time=$(date +%H:%M:%S)
 end_time_s=$(date +%s)
