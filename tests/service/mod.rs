@@ -20,6 +20,11 @@ pub enum InitArgs {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, CandidType, Deserialize)]
+pub struct ExampleVec {
+    pub vec_data: u64,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, CandidType, Deserialize)]
 pub struct MemoryMetrics {
     pub wasm_binary_size: candid::Nat,
     pub wasm_chunk_store_size: candid::Nat,
@@ -254,6 +259,48 @@ impl Service<'_> {
 
     // ======================= business apis =======================
 
+    pub fn business_example_cell_query(&self) -> Result<String> {
+        self.query_call("business_example_cell_query", Encode!(&()).unwrap())
+    }
+    pub fn business_example_cell_set(&self, arg0: String) -> Result<()> {
+        self.update_call("business_example_cell_set", encode_one(&arg0).unwrap())
+    }
+    pub fn business_example_cell_set_panic_in_state(&self, arg0: String) -> Result<()> {
+        self.update_call("business_example_cell_set_panic_in_state", encode_one(&arg0).unwrap())
+    }
+    pub fn business_example_cell_set_panic_after_state(&self, arg0: String) -> Result<()> {
+        self.update_call(
+            "business_example_cell_set_panic_after_state",
+            encode_one(&arg0).unwrap(),
+        )
+    }
+    pub fn business_example_cell_set_panic_in_business(&self, arg0: String) -> Result<()> {
+        self.update_call(
+            "business_example_cell_set_panic_in_business",
+            encode_one(&arg0).unwrap(),
+        )
+    }
+    pub fn business_example_log_query(&self) -> Result<Vec<String>> {
+        self.query_call("business_example_log_query", Encode!(&()).unwrap())
+    }
+    pub fn business_example_log_update(&self, arg0: String) -> Result<u64> {
+        self.update_call("business_example_log_update", encode_one(&arg0).unwrap())
+    }
+    pub fn business_example_map_query(&self) -> Result<Vec<(u64, String)>> {
+        self.query_call("business_example_map_query", Encode!(&()).unwrap())
+    }
+    pub fn business_example_map_update(&self, arg0: u64, arg1: Option<String>) -> Result<Option<String>> {
+        self.update_call("business_example_map_update", encode_args((&arg0, &arg1)).unwrap())
+    }
+    pub fn business_example_priority_queue_pop(&self) -> Result<Option<u64>> {
+        self.update_call("business_example_priority_queue_pop", Encode!(&()).unwrap())
+    }
+    pub fn business_example_priority_queue_push(&self, arg0: u64) -> Result<()> {
+        self.update_call("business_example_priority_queue_push", encode_one(arg0).unwrap())
+    }
+    pub fn business_example_priority_queue_query(&self) -> Result<Vec<u64>> {
+        self.query_call("business_example_priority_queue_query", Encode!(&()).unwrap())
+    }
     pub fn business_example_query(&self) -> Result<String> {
         self.query_call("business_example_query", Encode!(&()).unwrap())
     }
@@ -274,5 +321,14 @@ impl Service<'_> {
             "business_example_count_set_panic_after_state",
             encode_one(arg0).unwrap(),
         )
+    }
+    pub fn business_example_vec_pop(&self) -> Result<Option<ExampleVec>> {
+        self.update_call("business_example_vec_pop", Encode!(&()).unwrap())
+    }
+    pub fn business_example_vec_push(&self, arg0: u64) -> Result<()> {
+        self.update_call("business_example_vec_push", encode_one(arg0).unwrap())
+    }
+    pub fn business_example_vec_query(&self) -> Result<Vec<ExampleVec>> {
+        self.query_call("business_example_vec_query", Encode!(&()).unwrap())
     }
 }

@@ -1,5 +1,5 @@
 [package]
-name = "template" # 项目名
+name = "service"  # 项目名
 version = "0.0.1" # 版本
 edition = "2024"  # 大版本
 
@@ -46,6 +46,7 @@ ic-canister-kit = { version = "1.3.3", features = [
     "canister",
     "call-once",
     "schedule",
+    "stable",
 ] }
 
 strum = "0.28"

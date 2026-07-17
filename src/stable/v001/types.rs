@@ -22,6 +22,12 @@ pub use _topic::*;
 mod _canister_kit;
 pub use _canister_kit::*;
 
+// 业务类型
+mod example;
+pub use example::*;
+mod stable;
+use stable::*;
+
 // 能序列化的和不能序列化的放在一起
 // 其中不能序列化的采用如下注解
 // #[serde(skip)] 默认初始化方式
@@ -34,6 +40,17 @@ pub struct InnerState {
     // 业务数据
     pub example_data: String, // 样例数据 // ? 堆内存 序列化
     pub example_count: u64,   // 样例数据 // ? 堆内存 序列化
+
+    #[serde(skip, default = "init_example_cell_data")]
+    pub example_cell: StableCell<ExampleCell>, // 样例数据 // ? 稳定内存
+    #[serde(skip, default = "init_example_vec_data")]
+    pub example_vec: StableVec<ExampleVec>, // 样例数据 // ? 稳定内存
+    #[serde(skip, default = "init_example_map_data")]
+    pub example_map: StableBTreeMap<u64, String>, // 样例数据 // ? 稳定内存
+    #[serde(skip, default = "init_example_log_data")]
+    pub example_log: StableLog<String>, // 样例数据 // ? 稳定内存
+    #[serde(skip, default = "init_example_priority_queue_data")]
+    pub example_priority_queue: StablePriorityQueue<ExampleVec>, // 样例数据 // ? 稳定内存
 }
 
 impl Default for InnerState {
@@ -45,6 +62,12 @@ impl Default for InnerState {
             // 业务数据
             example_data: Default::default(),
             example_count: Default::default(),
+
+            example_cell: init_example_cell_data(),
+            example_vec: init_example_vec_data(),
+            example_map: init_example_map_data(),
+            example_log: init_example_log_data(),
+            example_priority_queue: init_example_priority_queue_data(),
         }
     }
 }

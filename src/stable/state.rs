@@ -42,9 +42,13 @@ fn initial(args: Option<InitArgs>) {
 #[ic_cdk::post_upgrade]
 fn post_upgrade(args: Option<UpgradeArgs>) {
     STATE.with(|state| {
-        let stable = ic_cdk::storage::stable_restore();
-        let stable: (RecordId, u32, Vec<u8>) = ic_canister_kit::common::trap(stable); // ! 可能读档失败
-        let (record_id, version, bytes) = stable;
+        let memory = ic_canister_kit::stable::get_upgrades_memory();
+        let mut memory = ReadUpgradeMemory::new(&memory);
+
+        let record_id = memory.read_u64().into(); // restore record id
+        let version = memory.read_u32(); // restore version
+        let mut bytes = vec![0; memory.read_u64() as usize];
+        memory.read(&mut bytes); // restore data
 
         // 利用版本号恢复升级前的版本
         let mut last_state = State::from_version(version);
@@ -89,8 +93,13 @@ fn pre_upgrade() {
         let version = state.borrow().version();
         let bytes = state.borrow().heap_to_bytes();
 
-        let stable: (RecordId, u32, Vec<u8>) = (record_id, version, bytes);
-        trap(ic_cdk::storage::stable_save(stable)); // ! 可能存档失败
+        let mut memory = ic_canister_kit::stable::get_upgrades_memory();
+        let mut memory = WriteUpgradeMemory::new(&mut memory);
+
+        trap(memory.write_u64(record_id.into_inner())); // store record id
+        trap(memory.write_u32(version)); // store version
+        trap(memory.write_u64(bytes.len() as u64)); // store heap data length
+        trap(memory.write(&bytes)); // store heap data length
     });
 }
 

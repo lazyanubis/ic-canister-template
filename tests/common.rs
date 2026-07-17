@@ -91,7 +91,7 @@ fn test_common_apis() {
 
     // 🚩 3 record no permission
     assert_eq!(alice.record_topics().unwrap_err().reject_message, "Permission 'RecordFind' is required".to_string());
-    assert_eq!(default.record_topics().unwrap(), ["Example", "CyclesCharge", "Upgrade", "Schedule", "Record", "Permission", "Pause", "Initial"].iter().map(|t| t.to_string()).collect::<Vec<_>>());
+    assert_eq!(default.record_topics().unwrap(), ["Example", "ExampleCell", "ExampleVec", "ExampleMap", "ExampleLog", "ExamplePriorityQueue", "CyclesCharge", "Upgrade", "Schedule", "Record", "Permission", "Pause", "Initial"].iter().map(|t| t.to_string()).collect::<Vec<_>>());
     let mut page_data = default.record_find_by_page(QueryPage { page: 1, size: 1 }, Some(RecordSearchArg{ id_range: None, created_at_nanos_range: None, topic: Some(vec!["Pause".to_string()]), content: None, caller: None })).unwrap();
     assert_eq!(page_data.total, 2);
     assert_eq!(page_data.page, 1);
