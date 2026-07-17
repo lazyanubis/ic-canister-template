@@ -1,86 +1,118 @@
-# ic-canister-service
+# ic-canister-storage
 
-一个使用 Rust 2024 编写的 Internet Computer Canister 服务模板。项目提供版本化状态、维护模式、权限、
-操作记录、定时任务和 PocketIC 升级回归，并同时演示堆内存状态与 Stable Structures 的使用方式。
+`ic-canister-storage` 是一个使用 Rust 2024 编写的 Internet Computer 文件存储 Canister。它负责接收分块上传的
+文件，把文件内容保存在 Stable Structures 中，并通过 Candid 和 IC HTTP 接口提供查询、下载和网页访问能力。
 
-## 系统功能
+项目同时集成了 `ic-canister-kit` 提供的权限、维护模式、操作记录、定时任务和版本化升级框架，适合用作小型静态
+资源站点、前端资源托管或其他需要 Canister 内文件存储的项目基础。
 
-- Canister 基础能力：cycles 余额与充值、Canister 状态、调用者身份和当前状态版本查询。
-- 维护模式：记录维护原因；进入维护前等待定时任务空闲并停止 timer，退出维护后恢复 timer。
-- 权限与角色：支持用户权限、角色权限和用户角色关系；`Permitted` 默认无权，`Forbidden` 默认有权。
-- 操作 Record：记录调用人、主题、参数、完成时间和结果，支持保留上限、带条件的分页查询与按
-  `RecordId` 批量删除。
-- 定时任务：支持配置周期、自动执行和手动触发；自动与手动执行共用防重入锁。
-- 示例业务：演示普通堆字段以及 Stable Cell、Vec、BTreeMap、Log 和 PriorityQueue 的读写与升级保持。
+## 核心能力
 
-## 内存与持久化模型
+- 分块上传：按 `path` 接收文件块，校验块序号、块大小、文件总大小和 headers，全部上传完成后再发布文件。
+- 哈希复用：文件以 SHA-256 hash 标识；相同内容可以复用底层数据，只新增路径和 headers 元数据。
+- 哈希校验模式：`hashed = false` 时由 Canister 在上传完成后重新计算 hash；`hashed = true` 时信任调用方提供的
+  hash，适合可信上传工具减少重复计算。
+- 文件管理：支持查询文件列表、完整下载、按 offset/size 下载、覆盖同路径文件和批量删除路径。
+- HTTP 访问：访问 `/` 可查看内置文件列表页，访问文件路径可直接获取内容；大响应通过 IC streaming callback
+  分段返回，并携带保存的 headers 和 ETag。
+- 权限控制：查询、上传、删除、维护、Record 和 schedule 使用独立权限，可直接授权用户，也可通过角色授权。
+- 运维能力：支持维护模式、cycles 查询与充值、Canister 状态查询、操作 Record、定时任务和 PocketIC 回归。
+- 升级恢复：堆状态通过 `pre_upgrade`/`post_upgrade` 快照恢复，文件内容保留在固定 MemoryId 的 Stable
+  Structures 中。
 
-本项目不是“只使用堆内存”，而是混合使用 Wasm 堆内存和稳定内存：
+## 文件上传与访问流程
 
-| 区域 | 当前用途 | 升级行为 | IC 平台上限 |
-| --- | --- | --- | --- |
-| Wasm 堆内存 | `CanisterKit`、`example_data`、`example_count` 等普通 Rust 状态 | 升级会清空；本项目在 `pre_upgrade` 中序列化到稳定内存，并在 `post_upgrade` 中恢复 | 当前目标是 wasm32，理论硬上限为 **4 GiB** |
-| 稳定内存 | 升级快照，以及 `StableCell`、`StableVec`、`StableBTreeMap`、`StableLog`、`StablePriorityQueue` | Canister 升级后原地保留；Stable Structures 不进入堆快照 | 每个 Canister 理论上限为 **500 GiB** |
+1. 上传端读取本地文件，计算 SHA-256，并根据 `chunk_size` 拆分数据。
+2. 上传端依次调用 `business_upload`，传入文件路径、headers、hash、总大小、块序号和当前块内容。
+3. Canister 在 heap 中维护上传进度；所有块到齐后生成文件元数据，并把内容切成最多 2 MiB 的内部数据块写入
+   stable memory。
+4. Candid 调用方可以通过 `business_files`、`business_download` 或 `business_download_by` 读取文件。
+5. 浏览器可以通过 Canister HTTP 地址直接访问文件路径；超过单次 HTTP 响应上限的数据会继续走
+   `http_streaming`。
 
-这里的 **500 GiB** 是当前 IC 官方资源上限，不是旧文档中的 400G。它不表示单次调用可以读写全部空间：
-稳定内存仍受单消息访问/写入上限、子网可用容量、Canister memory settings 和 cycles 余额约束。当前限制以
-[IC resource limits](https://docs.internetcomputer.org/references/resource-limits/) 为准。
+仓库中的 `tests/upload.rs` 是配套上传工具：它比较本地目录与远端文件列表，删除远端多余路径，并只上传新增或
+发生变化的文件。默认配置位于文件顶部，执行前应确认 `IDENTITY`、`NETWORK` 和 `ASSETS_DIR`。
 
-堆内存同样不能按 4 GiB 用满后再考虑升级。序列化堆状态会额外消耗 heap、指令和升级消息的稳定内存
-读写预算；状态越接近上限，`pre_upgrade` 越可能无法完成。长期增长、必须直接跨升级保留的数据应优先评估
-Stable Structures 或拆分 Canister，而不是无限扩大堆快照。参见
-[IC data persistence](https://docs.internetcomputer.org/guides/backends/data-persistence/)。
+## 运行边界
 
-## 稳定内存分区
+- 单文件最大 256 MiB；单次 `business_upload` 最多提交 64 个分块，分块数据合计不得超过 2 MiB。
+- 单次 `business_delete` 最多提交 1000 个路径，路径文本合计不得超过 64 KiB。
+- 同时最多保留 16 个未完成上传；已发布资源与未完成上传缓冲区的逻辑总量不得超过 1 GiB。
+- 路径最大 1024 bytes，不能包含控制字符、`?` 或 `#`。
+- 单文件最多 64 个 Header，Header 总大小不得超过 64 KiB；协议管理头、非法名称以及包含换行的值会被拒绝。
+- `business_download` 和单次 `business_download_by` 受直接 query 响应大小限制，大文件应使用 HTTP streaming。
+- HTTP Range 当前支持单段 `bytes` 范围；无法满足或格式不合法的范围返回 `416`。
 
-`ic-canister-kit` 使用 Memory Manager 将稳定内存划分为虚拟分区。当前分配如下：
+## 存储模型
+
+项目同时使用 Wasm heap 和 stable memory，两者职责不同：
+
+| 存储区域 | 当前内容 | 升级方式 |
+| --- | --- | --- |
+| Wasm heap | 权限、维护状态、Record、schedule、文件元数据、hash/path 索引和上传中缓冲区 | `pre_upgrade` 序列化到升级专用稳定内存，`post_upgrade` 按状态版本恢复 |
+| Stable Structures | 实际文件数据块，类型为 `StableBTreeMap<SliceOfHashDigest, Vec<u8>>` | 升级后原地保留，不进入 heap snapshot |
+
+当前稳定内存分区：
 
 | MemoryId | 用途 |
 | --- | --- |
-| `0` | `StableCell<ExampleCell>` |
-| `1` | `StableVec<ExampleVec>` |
-| `2` | `StableBTreeMap<u64, String>` |
-| `3` | `StableLog<String>` 的索引区 |
-| `4` | `StableLog<String>` 的数据区 |
-| `5` | `StablePriorityQueue<ExampleVec>` |
-| `254` | `pre_upgrade` 写入的堆状态快照，由 `ic-canister-kit` 保留 |
+| `0` | 文件内容数据块；key 由块序号和文件 hash 组成 |
+| `254` | `ic-canister-kit` 保留的 heap 升级快照区 |
 
-MemoryId 和对应数据类型是持久化格式的一部分。已经使用的 ID 不得复用，也不能在后续版本中直接更换数据
-结构类型；新业务需要分配新的 ID，并为数据迁移和升级回归补充测试。
+MemoryId、Stable Structure 类型以及 key/value 编码都是持久化协议的一部分。已经使用的 ID 不能复用，也不能在
+原状态版本中直接更换底层类型。需要改变持久化布局时，应新增 `src/stable/vNNN/` 版本和显式迁移。
 
-## 状态版本与升级流程
+上传中的完整文件缓冲区位于 heap，因此接口中声明的文件大小上限不等于实际可安全用满的容量；实际部署仍受 IC
+单消息、Wasm heap、指令、stable memory 写入和 cycles 等限制。
 
-- `State::V*`、`StateUpgrade`、版本化的 `InitArgs`/`UpgradeArgs` 和逐版本转换共同约束状态迁移。
-- `version()` 只表示存储状态版本，不表示 API、发布版本或 Candid 版本。
-- `pre_upgrade` 要求 Canister 已进入维护状态且定时任务空闲，然后停止 timer、创建升级 Record，并把
-  `(record_id, state_version, byte_length, heap_bytes)` 写入 MemoryId `254`。
-- `post_upgrade` 按旧版本恢复堆状态，逐步迁移到最新版本，处理升级参数，校验 schedule，重启 timer，
-  最后完成升级 Record。
-- Stable Structures 字段使用 `#[serde(skip)]`，升级时重新绑定原 MemoryId，不会被重复写入堆快照。
-- 新增或改变持久化字段时，应新增 `src/stable/vNNN/` 和显式迁移；不要原地改变旧版本的序列化布局。
+## 主要接口
 
-## 运行约束
+完整接口以 `sources/source.did` 为准，常用接口包括：
 
-- 所有用户输入、文本、bytes、列表和递归结构都应在 Canister 入口校验格式、业务范围、数量和字节大小。
-- 新状态的 Record 默认最多保留 `65,536` 条；达到 `retention_limit` 后，写入新 Record 会淘汰最旧条目并
-  累计淘汰数量。该限制按条目数计算，不限制单条内容的字节数，因此每项业务仍需约束写入 Record 的大小。
-- Record 查询与删除的单次最大数量为 `1000`。需要完整审计历史时，应在自动淘汰前定期执行“分页 query
-  -> 外部持久化 -> 按 RecordId 批量删除”。删除会去重 ID，返回实际删除数量；不存在的 ID 不报错，调用方
-  可以安全重试。删除操作本身不再创建 Record，避免无法清空日志。
-- schedule 参数单位为纳秒，启用时不得小于 1 秒，并且必须落入 IC timer 的 `u64` 纳秒范围。
-- `schedule_trigger` 只允许在非维护模式下执行；自动与手动任务不会并发运行。
-- 管理员可以主动移除全部权限，这是模板保留的运营语义，不强制要求至少存在一个管理员。
-- 同一条 Canister 消息内发生 trap 时，状态和本次 Record 一同回滚；跨 `await` 的回滚边界仍遵循 IC 消息模型。
+| 分类 | 接口 |
+| --- | --- |
+| 文件查询 | `business_files`、`business_download`、`business_download_by` |
+| 文件修改 | `business_upload`、`business_delete`、`business_hashed_update` |
+| HTTP | `http_request`、`http_streaming` |
+| 维护 | `pause_query`、`pause_query_reason`、`pause_replace` |
+| 权限 | `permission_all`、`permission_query`、`permission_find_by_user`、`permission_update` |
+| Record | `record_topics`、`record_find_by_page`、`record_delete` |
+| Schedule | `schedule_find`、`schedule_replace`、`schedule_trigger` |
+| Canister | `wallet_balance`、`wallet_receive`、`canister_status`、`whoami`、`version` |
 
-## Candid 与构建
+## 目录结构
 
-公开 query/update、参数或返回类型变化后，重新生成并检查 `sources/source.did`：
-
-```bash
-cargo test -p service update_candid -- --ignored --nocapture
+```text
+src/
+├── business.rs          # 文件业务 Candid 入口
+├── common/              # 通用 API、Candid 生成和共享定义
+├── explore.rs           # 内置文件列表页面数据
+├── http.rs              # IC HTTP 与 streaming callback
+├── stable/              # 状态访问、升级流程和版本化业务实现
+└── types.rs             # 公共类型 re-export
+tests/
+├── business.rs          # 文件业务 PocketIC 回归
+├── common.rs            # 权限、维护、Record、schedule 回归
+├── regressions.rs       # 资源生命周期、HTTP Range 和边界回归
+├── service/             # PocketIC Candid 调用 wrapper
+├── upgrade.rs           # 旧 Wasm 到当前 Wasm 的升级回归
+└── upload.rs            # 本地资源同步工具
+web/                     # 编译进 Canister 的文件列表页
+sources/source.did       # 从 Rust 接口生成的 Candid
 ```
 
-常用验证命令：
+## 开发环境
+
+- Rust `1.97.0`，目标 `wasm32-unknown-unknown`
+- `dfx`
+- `ic-wasm`
+- `gzip`
+
+Rust target 和组件已写入 `rust-toolchain.toml`，进入仓库后 Rustup 会自动选择对应工具链。
+
+## 构建与验证
+
+常用检查：
 
 ```bash
 cargo fmt --all -- --check
@@ -89,14 +121,51 @@ cargo test
 cargo build --target wasm32-unknown-unknown --release
 ```
 
-`dfx build service` 会执行 `dfx.json` 中的完整流程：生成 Candid、构建 release Wasm、注入 Candid
-metadata、shrink 并 gzip。
+公开 query/update、参数或返回类型发生变化后，重新生成并检查 Candid：
+
+```bash
+cargo test -p storage update_candid -- --ignored --nocapture
+```
+
+执行 `dfx.json` 中的完整构建流程：
+
+```bash
+dfx build storage
+```
+
+该流程会生成 Candid、构建 release Wasm、注入 Candid metadata、shrink，并输出
+`sources/source_opt.wasm.gz`。
+
+## 本地部署与资源同步
+
+首次部署到本地网络：
+
+```bash
+dfx start --background
+dfx deploy --network local storage
+```
+
+升级已经运行的 Canister 前，应先进入维护模式，等待定时任务空闲，再部署并退出维护模式。`deploy.sh` 包含当前
+本地网络的升级流程，同时会调用上传工具；它会真实修改 Canister 状态，不应作为普通 build/test 命令执行。
+
+同步 `assets/` 目录：
+
+```bash
+bash upload.sh
+```
+
+`upload.sh` 最终运行 ignored 的 `upload` 测试，会连接 `tests/upload.rs` 中配置的网络和 identity。执行前必须检查
+目标网络，避免把本地资源误同步到其他 Canister。
 
 ## PocketIC 回归
 
-- `bash tests/test.sh`：优先复用已有 `sources/source_opt.wasm.gz`；文件缺失时会先生成当前 Wasm。
-- `bash tests/test.sh update`：运行普通测试和 Clippy，重新生成 Candid 和当前 Wasm，再执行升级、通用 API 和
-  业务 API 三组 ignored PocketIC 测试。
-- `tests/test.sh` 在缺少 `sources/source_opt_0_0_1.wasm.gz` 时会把当前 Wasm 复制为旧版占位文件。验证真实
-  跨版本迁移前，必须确认该 fixture 确实来自目标旧版本。
-- `deploy.sh` 会直接操作 `--network ic` 上的 Canister，不应作为普通本地验证命令运行。
+- `bash tests/test.sh`：复用已有当前 Wasm，执行升级、通用 API、文件业务和资源/HTTP 回归四组 ignored 测试。
+- `bash tests/test.sh update`：先运行普通测试和 Clippy，再重新生成 Candid、构建当前 Wasm 并执行完整回归。
+- `sources/source_opt_0_0_1.wasm.gz` 应当是真实历史版本。脚本在 fixture 缺失时会复制当前 Wasm 作为占位，这种
+  情况只能验证升级流程，不能证明历史数据兼容。
+
+升级兼容需要分别检查：
+
+1. heap snapshot 是否能由新类型反序列化并完成逐版本迁移。
+2. Stable Structures 的 MemoryId、类型和编码是否保持不变。
+3. `sources/source.did` 的变化是否要求调用方重新生成 Candid bindings。

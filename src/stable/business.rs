@@ -26,61 +26,51 @@ pub(super) mod immutable {
         + ScheduleTask
         + StableHeap
     {
-        fn business_example_query(&self) -> String {
+        // 对外的查询接口
+        fn business_hashed_find(&self) -> bool {
             ic_cdk::trap("Not supported operation by this version.")
         }
-        fn business_example_count_query(&self) -> u64 {
-            ic_cdk::trap("Not supported operation by this version.")
-        }
-
-        fn business_example_cell_query(&self) -> crate::stable::ExampleCell {
+        fn business_files(&self) -> Vec<crate::stable::QueryFile> {
             ic_cdk::trap("Not supported operation by this version.")
         }
 
-        fn business_example_vec_query(&self) -> Vec<crate::stable::ExampleVec> {
+        fn business_download(&self, path: String) -> Vec<u8> {
+            ic_cdk::trap("Not supported operation by this version.")
+        }
+        fn business_download_by(&self, path: String, offset: u64, size: u64) -> Vec<u8> {
             ic_cdk::trap("Not supported operation by this version.")
         }
 
-        fn business_example_map_query(&self) -> HashMap<u64, String> {
+        // 内部使用的接口
+        fn business_assets_get_file(&self, path: &str) -> Option<&crate::stable::AssetFile> {
             ic_cdk::trap("Not supported operation by this version.")
         }
-
-        fn business_example_log_query(&self) -> Vec<String> {
-            ic_cdk::trap("Not supported operation by this version.")
-        }
-
-        fn business_example_priority_queue_query(&self) -> Vec<crate::stable::ExampleVec> {
+        fn business_assets_get(&self, hash: &crate::stable::HashDigest) -> Option<&crate::stable::AssetData> {
             ic_cdk::trap("Not supported operation by this version.")
         }
     }
 
     // 业务实现
     impl Business for State {
-        fn business_example_query(&self) -> String {
-            self.get().business_example_query()
+        fn business_hashed_find(&self) -> bool {
+            self.get().business_hashed_find()
         }
-        fn business_example_count_query(&self) -> u64 {
-            self.get().business_example_count_query()
-        }
-
-        fn business_example_cell_query(&self) -> ExampleCell {
-            self.get().business_example_cell_query()
+        fn business_files(&self) -> Vec<QueryFile> {
+            self.get().business_files()
         }
 
-        fn business_example_vec_query(&self) -> Vec<ExampleVec> {
-            self.get().business_example_vec_query()
+        fn business_download(&self, path: String) -> Vec<u8> {
+            self.get().business_download(path)
+        }
+        fn business_download_by(&self, path: String, offset: u64, size: u64) -> Vec<u8> {
+            self.get().business_download_by(path, offset, size)
         }
 
-        fn business_example_map_query(&self) -> HashMap<u64, String> {
-            self.get().business_example_map_query()
+        fn business_assets_get_file(&self, path: &str) -> Option<&AssetFile> {
+            self.get().business_assets_get_file(path)
         }
-
-        fn business_example_log_query(&self) -> Vec<String> {
-            self.get().business_example_log_query()
-        }
-
-        fn business_example_priority_queue_query(&self) -> Vec<ExampleVec> {
-            self.get().business_example_priority_queue_query()
+        fn business_assets_get(&self, hash: &HashDigest) -> Option<&AssetData> {
+            self.get().business_assets_get(hash)
         }
     }
 }
@@ -98,40 +88,14 @@ pub mod mutable {
     #[allow(clippy::expect_used)] // ? 允许回滚
     #[allow(unused_variables)]
     pub trait MutableBusiness: Business {
-        fn business_example_update(&mut self, test: String) {
+        // 对外的修改接口
+        fn business_hashed_update(&mut self, hashed: bool) {
             ic_cdk::trap("Not supported operation by this version.")
         }
-        fn business_example_count_update(&mut self, value: u64) {
+        fn business_upload(&mut self, args: Vec<crate::stable::UploadingArg>) {
             ic_cdk::trap("Not supported operation by this version.")
         }
-
-        fn business_example_cell_update(&mut self, test: String) {
-            ic_cdk::trap("Not supported operation by this version.")
-        }
-        fn business_example_cell_update_panic_in_business(&mut self, test: String) {
-            ic_cdk::trap("Not supported operation by this version.")
-        }
-
-        fn business_example_vec_push(&mut self, test: u64) {
-            ic_cdk::trap("Not supported operation by this version.")
-        }
-
-        fn business_example_vec_pop(&mut self) -> Option<crate::stable::ExampleVec> {
-            ic_cdk::trap("Not supported operation by this version.")
-        }
-
-        fn business_example_map_update(&mut self, key: u64, value: Option<String>) -> Option<String> {
-            ic_cdk::trap("Not supported operation by this version.")
-        }
-
-        fn business_example_log_update(&mut self, item: String) -> u64 {
-            ic_cdk::trap("Not supported operation by this version.")
-        }
-
-        fn business_example_priority_queue_push(&mut self, item: u64) {
-            ic_cdk::trap("Not supported operation by this version.")
-        }
-        fn business_example_priority_queue_pop(&mut self) -> Option<crate::stable::ExampleVec> {
+        fn business_delete(&mut self, names: Vec<String>) {
             ic_cdk::trap("Not supported operation by this version.")
         }
     }
@@ -141,40 +105,14 @@ pub mod mutable {
     #[allow(clippy::unwrap_used)] // ? 允许回滚
     #[allow(clippy::expect_used)] // ? 允许回滚
     impl MutableBusiness for State {
-        fn business_example_update(&mut self, test: String) {
-            self.get_mut().business_example_update(test)
+        fn business_hashed_update(&mut self, hashed: bool) {
+            self.get_mut().business_hashed_update(hashed)
         }
-        fn business_example_count_update(&mut self, value: u64) {
-            self.get_mut().business_example_count_update(value)
+        fn business_upload(&mut self, args: Vec<UploadingArg>) {
+            self.get_mut().business_upload(args)
         }
-
-        fn business_example_cell_update(&mut self, test: String) {
-            self.get_mut().business_example_cell_update(test)
-        }
-        fn business_example_cell_update_panic_in_business(&mut self, test: String) {
-            self.get_mut().business_example_cell_update_panic_in_business(test)
-        }
-
-        fn business_example_vec_push(&mut self, test: u64) {
-            self.get_mut().business_example_vec_push(test)
-        }
-        fn business_example_vec_pop(&mut self) -> Option<ExampleVec> {
-            self.get_mut().business_example_vec_pop()
-        }
-
-        fn business_example_map_update(&mut self, key: u64, value: Option<String>) -> Option<String> {
-            self.get_mut().business_example_map_update(key, value)
-        }
-
-        fn business_example_log_update(&mut self, item: String) -> u64 {
-            self.get_mut().business_example_log_update(item)
-        }
-
-        fn business_example_priority_queue_push(&mut self, item: u64) {
-            self.get_mut().business_example_priority_queue_push(item)
-        }
-        fn business_example_priority_queue_pop(&mut self) -> Option<ExampleVec> {
-            self.get_mut().business_example_priority_queue_pop()
+        fn business_delete(&mut self, names: Vec<String>) {
+            self.get_mut().business_delete(names)
         }
     }
 }

@@ -42,6 +42,30 @@ type CanisterStatusType = variant {
   // The canister is running.
   running;
 };
+// http 请求的结构体
+type CustomHttpRequest = record {
+  // 请求路径
+  url : text;
+  // 请求类型
+  method : text;
+  // 请求体
+  body : blob;
+  // 请求头
+  headers : vec record { text; text };
+};
+// http 响应的结构体
+type CustomHttpResponse = record {
+  // 响应体
+  body : blob;
+  // 响应头
+  headers : vec record { text; text };
+  // 是否将 HTTP query 请求升级为 update 调用
+  upgrade : opt bool;
+  // 如果有额外的数据需要通过流的方式继续传输 每个 http 请求最大只能支持 3M 的响应数据，因此太大的话需要采用此种方式
+  streaming_strategy : opt StreamingStrategy;
+  // 响应状态码
+  status_code : nat16;
+};
 // # Definite Canister Settings
 // 
 // Represents the actual settings in effect.
@@ -76,7 +100,6 @@ type EnvironmentVariable = record {
   // Name of the environment variable.
   name : text;
 };
-type ExampleVec = record { vec_data : nat64 };
 type InitArg = record { supers : opt vec principal; schedule : opt nat };
 type InitArgs = variant { V0 : InitArg; V1 : InitArg };
 // # Log Visibility.
@@ -147,6 +170,14 @@ type PermissionUpdatedArg = variant {
   // 更新用户角色
   UpdateUserRole : record { principal; opt vec text };
 };
+type QueryFile = record {
+  created : int;
+  modified : int;
+  hash : text;
+  path : text;
+  size : nat64;
+  headers : vec record { text; text };
+};
 // 分页对象
 type QueryPage = record {
   // 当前页码 1 开始计数
@@ -197,29 +228,54 @@ type RecordSearchArg = record {
   // 创建时间纳秒范围过滤，依次为包含下界和包含上界
   created_at_nanos_range : opt record { opt nat64; opt nat64 };
 };
+// 流式响应的响应体
+type StreamingCallbackHttpResponse = record {
+  // 下一次流式回调需要使用的 token，`None` 表示响应结束
+  token : opt StreamingCallbackToken;
+  // 响应体
+  body : blob;
+};
+// 流式响应的传递 token
+type StreamingCallbackToken = record {
+  // 继续请求需要使用的标识
+  token : vec record { text; text };
+  // url 定位哪个请求
+  path : text;
+};
+// 流式响应的启动策略
+type StreamingStrategy = variant {
+  // 回调函数
+  Callback : record {
+    // 回调参数token，用于识别哪个请求的回调
+    token : StreamingCallbackToken;
+    // 回调方法
+    callback : func (StreamingCallbackToken) -> (
+        StreamingCallbackHttpResponse,
+      ) query;
+  };
+};
+type UploadingArg = record {
+  hash : blob;
+  chunk : blob;
+  path : text;
+  size : nat64;
+  headers : vec record { text; text };
+  index : nat32;
+  chunk_size : nat32;
+};
 service : (opt InitArgs) -> {
-  business_example_cell_query : () -> (text) query;
-  business_example_cell_set : (text) -> ();
-  business_example_cell_set_panic_after_state : (text) -> ();
-  business_example_cell_set_panic_in_business : (text) -> ();
-  business_example_cell_set_panic_in_state : (text) -> ();
-  business_example_count_query : () -> (nat64) query;
-  business_example_count_set : (nat64) -> ();
-  business_example_count_set_panic_after_state : (nat64) -> ();
-  business_example_count_set_panic_in_state : (nat64) -> ();
-  business_example_log_query : () -> (vec text) query;
-  business_example_log_update : (text) -> (nat64);
-  business_example_map_query : () -> (vec record { nat64; text }) query;
-  business_example_map_update : (nat64, opt text) -> (opt text);
-  business_example_priority_queue_pop : () -> (opt nat64);
-  business_example_priority_queue_push : (nat64) -> ();
-  business_example_priority_queue_query : () -> (vec nat64) query;
-  business_example_query : () -> (text) query;
-  business_example_set : (text) -> ();
-  business_example_vec_pop : () -> (opt ExampleVec);
-  business_example_vec_push : (nat64) -> ();
-  business_example_vec_query : () -> (vec ExampleVec) query;
+  business_delete : (vec text) -> ();
+  business_download : (text) -> (blob) query;
+  business_download_by : (text, nat64, nat64) -> (blob) query;
+  business_files : () -> (vec QueryFile) query;
+  business_hashed_find : () -> (bool) query;
+  business_hashed_update : (bool) -> ();
+  business_upload : (vec UploadingArg) -> ();
   canister_status : () -> (CanisterStatusResult);
+  http_request : (CustomHttpRequest) -> (CustomHttpResponse) query;
+  http_streaming : (StreamingCallbackToken) -> (
+      StreamingCallbackHttpResponse,
+    ) query;
   pause_query : () -> (bool) query;
   pause_query_reason : () -> (opt PauseReason) query;
   pause_replace : (opt text) -> ();

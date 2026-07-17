@@ -20,8 +20,24 @@ pub enum InitArgs {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, CandidType, Deserialize)]
-pub struct ExampleVec {
-    pub vec_data: u64,
+pub struct QueryFile {
+    pub created: candid::Int,
+    pub modified: candid::Int,
+    pub hash: String,
+    pub path: String,
+    pub size: u64,
+    pub headers: Vec<(String, String)>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, CandidType, Deserialize)]
+pub struct UploadingArg {
+    pub hash: serde_bytes::ByteBuf,
+    pub chunk: serde_bytes::ByteBuf,
+    pub path: String,
+    pub size: u64,
+    pub headers: Vec<(String, String)>,
+    pub index: u32,
+    pub chunk_size: u32,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, CandidType, Deserialize)]
@@ -87,6 +103,46 @@ pub struct CanisterStatusResult {
     pub idle_cycles_burned_per_day: candid::Nat,
     pub module_hash: Option<serde_bytes::ByteBuf>,
     pub reserved_cycles: candid::Nat,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, CandidType, Deserialize)]
+pub struct CustomHttpRequest {
+    pub url: String,
+    pub method: String,
+    pub body: serde_bytes::ByteBuf,
+    pub headers: Vec<(String, String)>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, CandidType, Deserialize)]
+pub struct StreamingCallbackToken {
+    pub token: Vec<(String, String)>,
+    pub path: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, CandidType, Deserialize)]
+pub struct StreamingCallbackHttpResponse {
+    pub token: Option<StreamingCallbackToken>,
+    pub body: serde_bytes::ByteBuf,
+}
+
+candid::define_function!(pub StreamingStrategyCallbackCallback : (
+    StreamingCallbackToken,
+  ) -> (StreamingCallbackHttpResponse) query);
+#[derive(Debug, Clone, PartialEq, Eq, CandidType, Deserialize)]
+pub enum StreamingStrategy {
+    Callback {
+        token: StreamingCallbackToken,
+        callback: StreamingStrategyCallbackCallback,
+    },
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, CandidType, Deserialize)]
+pub struct CustomHttpResponse {
+    pub body: serde_bytes::ByteBuf,
+    pub headers: Vec<(String, String)>,
+    pub upgrade: Option<bool>,
+    pub streaming_strategy: Option<StreamingStrategy>,
+    pub status_code: u16,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, CandidType, Deserialize)]
@@ -259,76 +315,25 @@ impl Service<'_> {
 
     // ======================= business apis =======================
 
-    pub fn business_example_cell_query(&self) -> Result<String> {
-        self.query_call("business_example_cell_query", Encode!(&()).unwrap())
+    pub fn business_delete(&self, arg0: Vec<String>) -> Result<()> {
+        self.update_call("business_delete", encode_one(&arg0).unwrap())
     }
-    pub fn business_example_cell_set(&self, arg0: String) -> Result<()> {
-        self.update_call("business_example_cell_set", encode_one(&arg0).unwrap())
+    pub fn business_download(&self, arg0: String) -> Result<serde_bytes::ByteBuf> {
+        self.query_call("business_download", encode_one(&arg0).unwrap())
     }
-    pub fn business_example_cell_set_panic_in_state(&self, arg0: String) -> Result<()> {
-        self.update_call("business_example_cell_set_panic_in_state", encode_one(&arg0).unwrap())
+    pub fn business_download_by(&self, arg0: String, arg1: u64, arg2: u64) -> Result<serde_bytes::ByteBuf> {
+        self.query_call("business_download_by", encode_args((&arg0, &arg1, &arg2)).unwrap())
     }
-    pub fn business_example_cell_set_panic_after_state(&self, arg0: String) -> Result<()> {
-        self.update_call(
-            "business_example_cell_set_panic_after_state",
-            encode_one(&arg0).unwrap(),
-        )
+    pub fn business_files(&self) -> Result<Vec<QueryFile>> {
+        self.query_call("business_files", Encode!(&()).unwrap())
     }
-    pub fn business_example_cell_set_panic_in_business(&self, arg0: String) -> Result<()> {
-        self.update_call(
-            "business_example_cell_set_panic_in_business",
-            encode_one(&arg0).unwrap(),
-        )
+    pub fn business_hashed_find(&self) -> Result<bool> {
+        self.query_call("business_hashed_find", Encode!(&()).unwrap())
     }
-    pub fn business_example_log_query(&self) -> Result<Vec<String>> {
-        self.query_call("business_example_log_query", Encode!(&()).unwrap())
+    pub fn business_hashed_update(&self, arg0: bool) -> Result<()> {
+        self.update_call("business_hashed_update", encode_one(arg0).unwrap())
     }
-    pub fn business_example_log_update(&self, arg0: String) -> Result<u64> {
-        self.update_call("business_example_log_update", encode_one(&arg0).unwrap())
-    }
-    pub fn business_example_map_query(&self) -> Result<Vec<(u64, String)>> {
-        self.query_call("business_example_map_query", Encode!(&()).unwrap())
-    }
-    pub fn business_example_map_update(&self, arg0: u64, arg1: Option<String>) -> Result<Option<String>> {
-        self.update_call("business_example_map_update", encode_args((&arg0, &arg1)).unwrap())
-    }
-    pub fn business_example_priority_queue_pop(&self) -> Result<Option<u64>> {
-        self.update_call("business_example_priority_queue_pop", Encode!(&()).unwrap())
-    }
-    pub fn business_example_priority_queue_push(&self, arg0: u64) -> Result<()> {
-        self.update_call("business_example_priority_queue_push", encode_one(arg0).unwrap())
-    }
-    pub fn business_example_priority_queue_query(&self) -> Result<Vec<u64>> {
-        self.query_call("business_example_priority_queue_query", Encode!(&()).unwrap())
-    }
-    pub fn business_example_query(&self) -> Result<String> {
-        self.query_call("business_example_query", Encode!(&()).unwrap())
-    }
-    pub fn business_example_set(&self, arg0: String) -> Result<()> {
-        self.update_call("business_example_set", encode_one(arg0).unwrap())
-    }
-    pub fn business_example_count_query(&self) -> Result<u64> {
-        self.query_call("business_example_count_query", Encode!(&()).unwrap())
-    }
-    pub fn business_example_count_set(&self, arg0: u64) -> Result<()> {
-        self.update_call("business_example_count_set", encode_one(arg0).unwrap())
-    }
-    pub fn business_example_count_set_panic_in_state(&self, arg0: u64) -> Result<()> {
-        self.update_call("business_example_count_set_panic_in_state", encode_one(arg0).unwrap())
-    }
-    pub fn business_example_count_set_panic_after_state(&self, arg0: u64) -> Result<()> {
-        self.update_call(
-            "business_example_count_set_panic_after_state",
-            encode_one(arg0).unwrap(),
-        )
-    }
-    pub fn business_example_vec_pop(&self) -> Result<Option<ExampleVec>> {
-        self.update_call("business_example_vec_pop", Encode!(&()).unwrap())
-    }
-    pub fn business_example_vec_push(&self, arg0: u64) -> Result<()> {
-        self.update_call("business_example_vec_push", encode_one(arg0).unwrap())
-    }
-    pub fn business_example_vec_query(&self) -> Result<Vec<ExampleVec>> {
-        self.query_call("business_example_vec_query", Encode!(&()).unwrap())
+    pub fn business_upload(&self, arg0: Vec<UploadingArg>) -> Result<()> {
+        self.update_call("business_upload", encode_one(&arg0).unwrap())
     }
 }
