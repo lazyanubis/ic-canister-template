@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -euo pipefail
+
 cargo clippy
 cargo test
 
@@ -20,4 +22,4 @@ dfx canister --network local call ic-canister-assets business_hashed_update "(tr
 # http://bkyz2-fmaaa-aaaaa-qaaaq-cai.raw.localhost:4943
 
 # 上传资源文件
-RUST_BACKTRACE=1 cargo test upload -- --nocapture
+RUST_BACKTRACE=1 cargo test upload -- --ignored --nocapture

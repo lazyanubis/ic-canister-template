@@ -38,8 +38,12 @@ pub const MAX_ASSET_UPLOAD_BATCH_SIZE: usize = 64;
 pub const MAX_ASSET_DELETE_BATCH_SIZE: usize = 1000;
 pub const MAX_ASSET_UPLOAD_REQUEST_BYTES: usize = 2 * 1024 * 1024;
 pub const MAX_ASSET_DELETE_PATH_BYTES: usize = 64 * 1024;
+pub const MAX_ASSET_FILE_COUNT: usize = 10_000;
 const MAX_ACTIVE_UPLOADS: usize = 16;
-const MAX_ASSET_STATE_BYTES: u64 = 1024 * 1024 * 1024;
+const MAX_ASSET_DATA_BYTES: u64 = 512 * 1024 * 1024;
+const MAX_ASSET_METADATA_BYTES: u64 = 64 * 1024 * 1024;
+const PUBLISHED_FILE_FIXED_METADATA_BYTES: u64 = 32 + 16 + 16 + 8;
+const UPLOADING_FILE_FIXED_METADATA_BYTES: u64 = 32 + 8 + 4 + 4;
 const MAX_DIRECT_DOWNLOAD_SIZE: u64 = ic_canister_kit::http::MAX_RESPONSE_LENGTH as u64;
 
 // 能序列化的和不能序列化的放在一起
@@ -105,6 +109,8 @@ impl InnerState {
         }
     }
     fn put_file(&mut self, path: String, headers: Vec<(String, String)>, hash: HashDigest, size: u64) {
+        self.assure_file_capacity(&path, &headers);
+
         // 3. 插入 files: path -> hash
         let now = ic_canister_kit::times::now();
         let old_hash = self.files.get(&path).map(|file| file.hash);
@@ -164,18 +170,18 @@ impl InnerState {
         // 2. 清除 hashes 和无引用的 assets
         self.clean_hash_path(file.hash, &file.path);
     }
+    fn query_file(file: &AssetFile) -> QueryFile {
+        QueryFile {
+            path: file.path.clone(),
+            size: file.size,
+            headers: file.headers.clone(),
+            created: file.created,
+            modified: file.modified,
+            hash: file.hash.hex(),
+        }
+    }
     pub fn files(&self) -> Vec<QueryFile> {
-        self.files
-            .iter()
-            .map(|(path, file)| QueryFile {
-                path: path.to_string(),
-                size: file.size,
-                headers: file.headers.clone(),
-                created: file.created,
-                modified: file.modified,
-                hash: file.hash.hex(),
-            })
-            .collect()
+        self.files.values().map(Self::query_file).collect()
     }
     pub fn download(&self, path: String) -> Vec<u8> {
         use ic_canister_kit::common::trap;
@@ -276,6 +282,72 @@ impl InnerState {
             );
         }
     }
+    fn header_bytes(headers: &[(String, String)]) -> Option<u64> {
+        headers.iter().try_fold(0_u64, |bytes, (name, value)| {
+            bytes
+                .checked_add(name.len() as u64)
+                .and_then(|bytes| bytes.checked_add(value.len() as u64))
+        })
+    }
+    fn published_file_metadata_bytes(file: &AssetFile) -> Option<u64> {
+        // path 分别保存在 files key、AssetFile 和 hashes 反向索引中。
+        (file.path.len() as u64)
+            .checked_mul(3)
+            .and_then(|bytes| bytes.checked_add(Self::header_bytes(&file.headers)?))
+            .and_then(|bytes| bytes.checked_add(PUBLISHED_FILE_FIXED_METADATA_BYTES))
+    }
+    fn uploading_file_metadata_bytes(file: &UploadingFile) -> Option<u64> {
+        // path 分别保存在 uploading key 和 UploadingFile 中；chunked 长度按一字节一个标记保守计算。
+        (file.path.len() as u64)
+            .checked_mul(2)
+            .and_then(|bytes| bytes.checked_add(Self::header_bytes(&file.headers)?))
+            .and_then(|bytes| bytes.checked_add(file.chunked.len() as u64))
+            .and_then(|bytes| bytes.checked_add(UPLOADING_FILE_FIXED_METADATA_BYTES))
+    }
+    fn uploading_arg_metadata_bytes(arg: &UploadingArg) -> Option<u64> {
+        (arg.path.len() as u64)
+            .checked_mul(2)
+            .and_then(|bytes| bytes.checked_add(Self::header_bytes(&arg.headers)?))
+            .and_then(|bytes| bytes.checked_add(Self::chunks(arg) as u64))
+            .and_then(|bytes| bytes.checked_add(UPLOADING_FILE_FIXED_METADATA_BYTES))
+    }
+    fn published_metadata_bytes(&self) -> Option<u64> {
+        self.files.values().try_fold(0_u64, |bytes, file| {
+            bytes.checked_add(Self::published_file_metadata_bytes(file)?)
+        })
+    }
+    fn uploading_metadata_bytes(&self) -> Option<u64> {
+        self.uploading.values().try_fold(0_u64, |bytes, file| {
+            bytes.checked_add(Self::uploading_file_metadata_bytes(file)?)
+        })
+    }
+    fn assure_file_capacity(&self, path: &str, headers: &[(String, String)]) {
+        let replacing_metadata = self
+            .files
+            .get(path)
+            .and_then(Self::published_file_metadata_bytes)
+            .unwrap_or_default();
+        if !self.files.contains_key(path) {
+            assert!(self.files.len() < MAX_ASSET_FILE_COUNT, "too many published files");
+        }
+        let incoming = AssetFile {
+            path: path.to_string(),
+            created: 0_i128.into(),
+            modified: 0_i128.into(),
+            headers: headers.to_vec(),
+            hash: HashDigest([0; 32]),
+            size: 0,
+        };
+        let projected = self
+            .published_metadata_bytes()
+            .and_then(|bytes| bytes.checked_sub(replacing_metadata))
+            .and_then(|bytes| bytes.checked_add(Self::published_file_metadata_bytes(&incoming)?))
+            .and_then(|bytes| bytes.checked_add(self.uploading_metadata_bytes()?));
+        assert!(
+            projected.is_some_and(|bytes| bytes <= MAX_ASSET_METADATA_BYTES),
+            "asset metadata exceed the configured limit"
+        );
+    }
     fn assure_upload_capacity(&self, arg: &UploadingArg) {
         let replacing_size = self.uploading.get(&arg.path).map(|file| file.size).unwrap_or_default();
         if replacing_size == 0 {
@@ -287,8 +359,23 @@ impl InnerState {
             .checked_add(uploading_bytes.saturating_sub(replacing_size))
             .and_then(|bytes| bytes.checked_add(arg.size));
         assert!(
-            projected.is_some_and(|bytes| bytes <= MAX_ASSET_STATE_BYTES),
-            "asset and upload data exceed the configured state limit"
+            projected.is_some_and(|bytes| bytes <= MAX_ASSET_DATA_BYTES),
+            "asset and upload data exceed the configured data limit"
+        );
+
+        let replacing_metadata = self
+            .uploading
+            .get(&arg.path)
+            .and_then(Self::uploading_file_metadata_bytes)
+            .unwrap_or_default();
+        let projected_metadata = self
+            .published_metadata_bytes()
+            .and_then(|bytes| bytes.checked_add(self.uploading_metadata_bytes()?))
+            .and_then(|bytes| bytes.checked_sub(replacing_metadata))
+            .and_then(|bytes| bytes.checked_add(Self::uploading_arg_metadata_bytes(arg)?));
+        assert!(
+            projected_metadata.is_some_and(|bytes| bytes <= MAX_ASSET_METADATA_BYTES),
+            "asset metadata exceed the configured limit"
         );
     }
     fn assure_uploading(&mut self, arg: &UploadingArg) {
@@ -505,5 +592,56 @@ mod tests {
             index: 0,
             chunk: vec![0],
         });
+    }
+
+    #[test]
+    #[should_panic(expected = "asset and upload data exceed the configured data limit")]
+    fn rejects_uploads_above_the_heap_data_budget() {
+        let mut state = InnerState::default();
+        state.uploading.insert(
+            "/existing.bin".to_string(),
+            UploadingFile {
+                path: "/existing.bin".to_string(),
+                headers: vec![],
+                hash: HashDigest([0; 32]),
+                data: vec![],
+                size: MAX_ASSET_DATA_BYTES,
+                chunk_size: 1,
+                chunks: 1,
+                chunked: vec![false],
+            },
+        );
+
+        state.assure_upload_capacity(&UploadingArg {
+            path: "/next.bin".to_string(),
+            headers: vec![],
+            hash: HashDigest([1; 32]),
+            size: 1,
+            chunk_size: 1,
+            index: 0,
+            chunk: vec![1],
+        });
+    }
+
+    #[test]
+    #[should_panic(expected = "too many published files")]
+    fn rejects_new_paths_above_the_file_count_limit() {
+        let mut state = InnerState::default();
+        for index in 0..MAX_ASSET_FILE_COUNT {
+            let path = format!("/{index}.txt");
+            state.files.insert(
+                path.clone(),
+                AssetFile {
+                    path,
+                    created: 0_i128.into(),
+                    modified: 0_i128.into(),
+                    headers: vec![],
+                    hash: HashDigest([0; 32]),
+                    size: 1,
+                },
+            );
+        }
+
+        state.put_file("/overflow.txt".to_string(), vec![], HashDigest([1; 32]), 1);
     }
 }

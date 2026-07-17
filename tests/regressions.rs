@@ -10,6 +10,8 @@ use service::*;
 
 const INIT_CYCLES: u128 = 2 * 10_u128.pow(12);
 const WASM_MODULE_NEXT: &[u8] = include_bytes!("../sources/source_opt.wasm.gz");
+const STREAMING_TEST_FILE_SIZE: usize = 3 * 1024 * 1024;
+const UPLOAD_TEST_CHUNK_SIZE: usize = 1024 * 1024;
 
 fn request(
     pic: &PocketIc,
@@ -143,6 +145,59 @@ fn test_asset_and_http_regressions() {
         service.business_download("/old-hash-reused.bin".to_string()).unwrap(),
         vec![31, 32, 33]
     );
+
+    // 超过直接 query 响应上限的堆内文件必须能分片读取，并通过 HTTP streaming 完整下载。
+    let streaming_path = "/streaming.bin";
+    let streaming_data = (0..STREAMING_TEST_FILE_SIZE)
+        .map(|index| (index % 251) as u8)
+        .collect::<Vec<_>>();
+    for (index, chunk) in streaming_data.chunks(UPLOAD_TEST_CHUNK_SIZE).enumerate() {
+        service
+            .business_upload(vec![upload_arg(
+                streaming_path,
+                vec![0; 32],
+                chunk.to_vec(),
+                streaming_data.len() as u64,
+                index as u32,
+                UPLOAD_TEST_CHUNK_SIZE as u32,
+            )])
+            .unwrap();
+    }
+    let slice_offset = 2 * 1024 * 1024 - 2;
+    assert_eq!(
+        service
+            .business_download_by(streaming_path.to_string(), slice_offset as u64, 5)
+            .unwrap(),
+        streaming_data[slice_offset..slice_offset + 5]
+    );
+    let response = request(
+        &pic,
+        canister_id,
+        controller,
+        CustomHttpRequest {
+            url: streaming_path.to_string(),
+            method: "GET".to_string(),
+            body: vec![].into(),
+            headers: vec![],
+        },
+    );
+    assert_eq!(response.status_code, 200);
+    let mut downloaded = response.body.into_vec();
+    let mut token = match response.streaming_strategy {
+        Some(StreamingStrategy::Callback { token, .. }) => Some(token),
+        None => panic!("large asset response should use HTTP streaming"),
+    };
+    while let Some(current) = token {
+        let bytes = pic
+            .query_call(canister_id, controller, "http_streaming", encode_one(current).unwrap())
+            .unwrap();
+        let response = Decode!(&bytes, StreamingCallbackHttpResponse).unwrap();
+        downloaded.extend_from_slice(&response.body);
+        token = response.token;
+    }
+    assert_eq!(downloaded, streaming_data);
+    service.business_delete(vec![streaming_path.to_string()]).unwrap();
+    assert!(service.business_download(streaming_path.to_string()).is_err());
 
     // 单段 Range 返回 206 和请求的字节；越界范围返回 416。
     let response = request(

@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+set -euo pipefail
+
 start_time=$(date +%H:%M:%S)
 start_time_s=$(date +%s)
 
@@ -12,10 +14,12 @@ if [ ! -f "sources/source_opt.wasm.gz" ]; then
 fi
 
 if [ ! -f "sources/source_opt_0_0_1.wasm.gz" ]; then
-    cp sources/source_opt.wasm.gz sources/source_opt_0_0_1.wasm.gz
+    echo "Missing historical upgrade fixture: sources/source_opt_0_0_1.wasm.gz" >&2
+    echo "Provide a real previously deployed assets Wasm; the current Wasm must not be reused as an old version." >&2
+    exit 1
 fi
 
-if [ "$1" = "update" ]; then
+if [ "${1:-}" = "update" ]; then
     cargo test
     cargo clippy
 
@@ -26,7 +30,6 @@ if [ "$1" = "update" ]; then
     gzip -kfn sources/source_opt.wasm
 fi
 
-set -e
 cargo test test_upgrade -- --ignored
 cargo test test_common_apis -- --ignored
 cargo test test_business_apis -- --ignored
