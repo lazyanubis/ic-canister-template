@@ -2,12 +2,24 @@ use super::super::business::*;
 use super::types::*;
 
 impl Business for InnerState {
-    fn business_example_query(&self) -> String {
-        self.example_data.clone()
+    fn business_hashed_find(&self) -> bool {
+        self.hashed
+    }
+    fn business_files(&self) -> Vec<QueryFile> {
+        self.files()
+    }
+    fn business_download(&self, path: String) -> Vec<u8> {
+        self.download(path)
+    }
+    fn business_download_by(&self, path: String, offset: u64, size: u64) -> Vec<u8> {
+        self.download_by(path, offset, size)
     }
 
-    fn business_example_count_query(&self) -> u64 {
-        self.example_count
+    fn business_assets_get_file(&self, path: &str) -> Option<&AssetFile> {
+        self.files.get(path)
+    }
+    fn business_assets_get(&self, hash: &HashDigest) -> Option<&AssetData> {
+        self.assets.get(hash)
     }
 }
 
@@ -15,11 +27,20 @@ impl Business for InnerState {
 #[allow(clippy::unwrap_used)] // ? 允许回滚
 #[allow(clippy::expect_used)] // ? 允许回滚
 impl MutableBusiness for InnerState {
-    fn business_example_update(&mut self, test: String) {
-        self.example_data = test
+    fn business_hashed_update(&mut self, hashed: bool) {
+        self.hashed = hashed;
     }
-
-    fn business_example_count_update(&mut self, value: u64) {
-        self.example_count = value
+    fn business_upload(&mut self, args: Vec<UploadingArg>) {
+        check_upload_batch(&args);
+        for arg in args {
+            self.put_uploading(arg)
+        }
+    }
+    fn business_delete(&mut self, names: Vec<String>) {
+        check_delete_batch(&names);
+        for name in names {
+            self.clean_uploading(&name);
+            self.clean_file(&name);
+        }
     }
 }

@@ -17,8 +17,9 @@ pub use super::super::v000::types::{
 };
 
 // 业务权限
-pub const ACTION_BUSINESS_EXAMPLE_QUERY: &str = "BusinessExampleQuery"; // 业务查询权限
-pub const ACTION_BUSINESS_EXAMPLE_SET: &str = "BusinessExampleSet"; // 业务更新权限
+pub const ACTION_BUSINESS_QUERY: &str = "BusinessQuery"; // 业务查询权限
+pub const ACTION_BUSINESS_UPLOAD: &str = "BusinessUpload"; // 业务更新权限
+pub const ACTION_BUSINESS_DELETE: &str = "BusinessDelete"; // 业务更新权限
 
 // 所有权限列表
 #[allow(unused)]
@@ -35,8 +36,9 @@ pub const ACTIONS: &[&str] = &[
     ACTION_SCHEDULE_REPLACE,
     ACTION_SCHEDULE_TRIGGER,
     // 业务权限
-    ACTION_BUSINESS_EXAMPLE_QUERY,
-    ACTION_BUSINESS_EXAMPLE_SET,
+    ACTION_BUSINESS_QUERY,
+    ACTION_BUSINESS_UPLOAD,
+    ACTION_BUSINESS_DELETE,
 ];
 
 pub(super) fn get_all_permissions<'a, F>(parse: F) -> HashSet<Permission>
@@ -65,8 +67,9 @@ impl ParsePermission for InnerState {
             ACTION_SCHEDULE_REPLACE => Permission::by_permit(name),
             ACTION_SCHEDULE_TRIGGER => Permission::by_permit(name),
             // 业务权限
-            ACTION_BUSINESS_EXAMPLE_QUERY => Permission::by_forbid(name),
-            ACTION_BUSINESS_EXAMPLE_SET => Permission::by_permit(name),
+            ACTION_BUSINESS_QUERY => Permission::by_forbid(name),
+            ACTION_BUSINESS_UPLOAD => Permission::by_permit(name),
+            ACTION_BUSINESS_DELETE => Permission::by_permit(name),
             // 其他错误
             _ => return Err(ParsePermissionError(name)),
         })
@@ -83,11 +86,16 @@ pub use super::super::v000::types::{
 // 业务权限
 
 #[allow(unused)]
-pub fn has_business_example_query() -> Result<(), String> {
-    check_permission(ACTION_BUSINESS_EXAMPLE_QUERY, false)
+pub fn has_business_query() -> Result<(), String> {
+    check_permission(ACTION_BUSINESS_QUERY, false)
 }
 
 #[allow(unused)]
-pub fn has_business_example_set() -> Result<(), String> {
-    check_permission(ACTION_BUSINESS_EXAMPLE_SET, true)
+pub fn has_business_upload() -> Result<(), String> {
+    check_permission(ACTION_BUSINESS_UPLOAD, true)
+}
+
+#[allow(unused)]
+pub fn has_business_delete() -> Result<(), String> {
+    check_permission(ACTION_BUSINESS_DELETE, true)
 }

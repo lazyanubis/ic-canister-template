@@ -5,9 +5,9 @@ start_time_s=$(date +%s)
 trap 'say test over' EXIT
 
 if [ ! -f "sources/source_opt.wasm.gz" ]; then
-    cargo test -p template update_candid -- --ignored --nocapture
+    cargo test -p ic-canister-assets update_candid -- --ignored --nocapture
     cargo build --target wasm32-unknown-unknown --release
-    ic-wasm target/wasm32-unknown-unknown/release/template.wasm -o sources/source_opt.wasm metadata candid:service -f sources/source.did -v public
+    ic-wasm target/wasm32-unknown-unknown/release/ic_canister_assets.wasm -o sources/source_opt.wasm metadata candid:service -f sources/source.did -v public
     gzip -kfn sources/source_opt.wasm
 fi
 
@@ -19,9 +19,9 @@ if [ "$1" = "update" ]; then
     cargo test
     cargo clippy
 
-    cargo test -p template update_candid -- --ignored --nocapture
+    cargo test -p ic-canister-assets update_candid -- --ignored --nocapture
     cargo build --target wasm32-unknown-unknown --release
-    ic-wasm target/wasm32-unknown-unknown/release/template.wasm -o sources/source_opt.wasm metadata candid:service -f sources/source.did -v public
+    ic-wasm target/wasm32-unknown-unknown/release/ic_canister_assets.wasm -o sources/source_opt.wasm metadata candid:service -f sources/source.did -v public
     ic-wasm sources/source_opt.wasm -o sources/source_opt.wasm shrink
     gzip -kfn sources/source_opt.wasm
 fi
@@ -30,6 +30,7 @@ set -e
 cargo test test_upgrade -- --ignored
 cargo test test_common_apis -- --ignored
 cargo test test_business_apis -- --ignored
+cargo test test_asset_and_http_regressions -- --ignored
 
 end_time=$(date +%H:%M:%S)
 end_time_s=$(date +%s)

@@ -9,89 +9,91 @@ use crate::stable::*;
 use crate::types::*;
 
 // 查询
-#[ic_cdk::query(guard = "has_business_example_query")]
-fn business_example_query() -> String {
-    with_state(|s| s.business_example_query())
+#[ic_cdk::query(guard = "has_business_upload")]
+fn business_hashed_find() -> bool {
+    with_state(|s| s.business_hashed_find())
 }
-
-// 修改
-#[ic_cdk::update(guard = "has_business_example_set")]
-fn business_example_set(test: String) {
+#[ic_cdk::update(guard = "has_business_upload")]
+fn business_hashed_update(hashed: bool) {
     let _guard = call_once_guard(); // post 接口应该拦截
 
+    let old = with_state(|s| s.business_hashed_find());
+
+    if old == hashed {
+        return;
+    }
+
     let caller = caller();
-    let arg_content = format!("set test: {test}"); // * 记录参数内容
+    let arg_content = format!("set hashed: {old} -> {hashed}",); // * 记录参数内容
 
     with_mut_state(
         |s, _result| {
-            s.business_example_update(test);
+            s.business_hashed_update(hashed);
         },
         caller,
-        RecordTopics::Example.topic(),
+        RecordTopics::UploadFile.topic(),
         arg_content,
     )
 }
 
 // 查询
-#[ic_cdk::query(guard = "has_business_example_query")]
-fn business_example_count_query() -> u64 {
-    with_state(|s| s.business_example_count_query())
+#[ic_cdk::query(guard = "has_business_query")]
+fn business_files() -> Vec<QueryFile> {
+    with_state(|s| s.business_files())
+}
+
+#[ic_cdk::query(guard = "has_business_query")]
+fn business_download(path: String) -> Vec<u8> {
+    with_state(|s| s.business_download(path))
+}
+
+// 下载数据数据
+#[ic_cdk::query(guard = "has_business_query")]
+fn business_download_by(path: String, offset: u64, size: u64) -> Vec<u8> {
+    with_state(|s| s.business_download_by(path, offset, size))
 }
 
 // 修改
-#[ic_cdk::update(guard = "has_business_example_set")]
-fn business_example_count_set(value: u64) {
+#[ic_cdk::update(guard = "has_business_upload")]
+fn business_upload(args: Vec<UploadingArg>) {
     let _guard = call_once_guard(); // post 接口应该拦截
 
+    check_upload_batch(&args);
+
     let caller = caller();
-    let arg_content = format!("set value: {value}"); // * 记录参数内容
+    let arg_content = format!(
+        "upload file: [{}]",
+        args.iter()
+            .map(|arg| format!("path: {} size: {} index: {}", arg.path, arg.size, arg.index))
+            .collect::<Vec<_>>()
+            .join(", ")
+    ); // * 记录参数内容
 
     with_mut_state(
         |s, _result| {
-            s.business_example_count_update(value);
+            s.business_upload(args);
         },
         caller,
-        RecordTopics::Example.topic(),
+        RecordTopics::UploadFile.topic(),
         arg_content,
     )
 }
 
-// 修改
-#[ic_cdk::update(guard = "has_business_example_set")]
-fn business_example_count_set_panic_in_state(value: u64) {
+#[ic_cdk::update(guard = "has_business_delete")]
+fn business_delete(names: Vec<String>) {
     let _guard = call_once_guard(); // post 接口应该拦截
 
+    check_delete_batch(&names);
+
     let caller = caller();
-    let arg_content = format!("set value: {value}"); // * 记录参数内容
+    let arg_content = format!("delete file: [{}]", names.join(", ")); // * 记录参数内容
 
     with_mut_state(
         |s, _result| {
-            s.business_example_count_update(value);
-
-            ic_cdk::trap("panic in state");
+            s.business_delete(names);
         },
         caller,
-        RecordTopics::Example.topic(),
+        RecordTopics::DeleteFile.topic(),
         arg_content,
     )
-}
-
-// 修改
-#[ic_cdk::update(guard = "has_business_example_set")]
-fn business_example_count_set_panic_after_state(value: u64) {
-    let _guard = call_once_guard(); // post 接口应该拦截
-
-    let caller = caller();
-    let arg_content = format!("set value: {value}"); // * 记录参数内容
-
-    with_mut_state(
-        |s, _result| {
-            s.business_example_count_update(value);
-        },
-        caller,
-        RecordTopics::Example.topic(),
-        arg_content,
-    );
-
-    ic_cdk::trap("panic after state");
 }

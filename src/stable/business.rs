@@ -26,21 +26,49 @@ pub(super) mod immutable {
         + ScheduleTask
         + StableHeap
     {
-        fn business_example_query(&self) -> String {
+        // 对外的查询接口
+        fn business_hashed_find(&self) -> bool {
             ic_cdk::trap("Not supported operation by this version.")
         }
-        fn business_example_count_query(&self) -> u64 {
+        fn business_files(&self) -> Vec<crate::stable::QueryFile> {
+            ic_cdk::trap("Not supported operation by this version.")
+        }
+        fn business_download(&self, path: String) -> Vec<u8> {
+            ic_cdk::trap("Not supported operation by this version.")
+        }
+        fn business_download_by(&self, path: String, offset: u64, size: u64) -> Vec<u8> {
+            ic_cdk::trap("Not supported operation by this version.")
+        }
+
+        // 内部使用的接口
+        fn business_assets_get_file(&self, path: &str) -> Option<&crate::stable::AssetFile> {
+            ic_cdk::trap("Not supported operation by this version.")
+        }
+        fn business_assets_get(&self, hash: &crate::stable::HashDigest) -> Option<&crate::stable::AssetData> {
             ic_cdk::trap("Not supported operation by this version.")
         }
     }
 
     // 业务实现
     impl Business for State {
-        fn business_example_query(&self) -> String {
-            self.get().business_example_query()
+        fn business_hashed_find(&self) -> bool {
+            self.get().business_hashed_find()
         }
-        fn business_example_count_query(&self) -> u64 {
-            self.get().business_example_count_query()
+        fn business_files(&self) -> Vec<QueryFile> {
+            self.get().business_files()
+        }
+        fn business_download(&self, path: String) -> Vec<u8> {
+            self.get().business_download(path)
+        }
+        fn business_download_by(&self, path: String, offset: u64, size: u64) -> Vec<u8> {
+            self.get().business_download_by(path, offset, size)
+        }
+
+        fn business_assets_get_file(&self, path: &str) -> Option<&AssetFile> {
+            self.get().business_assets_get_file(path)
+        }
+        fn business_assets_get(&self, hash: &HashDigest) -> Option<&AssetData> {
+            self.get().business_assets_get(hash)
         }
     }
 }
@@ -58,10 +86,14 @@ pub mod mutable {
     #[allow(clippy::expect_used)] // ? 允许回滚
     #[allow(unused_variables)]
     pub trait MutableBusiness: Business {
-        fn business_example_update(&mut self, test: String) {
+        // 对外的修改接口
+        fn business_hashed_update(&mut self, hashed: bool) {
             ic_cdk::trap("Not supported operation by this version.")
         }
-        fn business_example_count_update(&mut self, value: u64) {
+        fn business_upload(&mut self, args: Vec<crate::stable::UploadingArg>) {
+            ic_cdk::trap("Not supported operation by this version.")
+        }
+        fn business_delete(&mut self, names: Vec<String>) {
             ic_cdk::trap("Not supported operation by this version.")
         }
     }
@@ -71,11 +103,14 @@ pub mod mutable {
     #[allow(clippy::unwrap_used)] // ? 允许回滚
     #[allow(clippy::expect_used)] // ? 允许回滚
     impl MutableBusiness for State {
-        fn business_example_update(&mut self, test: String) {
-            self.get_mut().business_example_update(test)
+        fn business_hashed_update(&mut self, hashed: bool) {
+            self.get_mut().business_hashed_update(hashed)
         }
-        fn business_example_count_update(&mut self, value: u64) {
-            self.get_mut().business_example_count_update(value)
+        fn business_upload(&mut self, args: Vec<UploadingArg>) {
+            self.get_mut().business_upload(args)
+        }
+        fn business_delete(&mut self, names: Vec<String>) {
+            self.get_mut().business_delete(names)
         }
     }
 }

@@ -33,8 +33,8 @@ fn test_common_apis() {
     #[allow(unused)] let carol = pocketed_canister_id.sender(carol_identity);
     #[allow(unused)] let anonymous = pocketed_canister_id.sender(anonymous_identity);
 
-    let public_permissions = ["PauseQuery", "PermissionQuery", "BusinessExampleQuery"].iter().map(|p| p.to_string()).collect::<Vec<_>>();
-    let super_permissions = ["PauseQuery", "PauseReplace", "PermissionQuery", "PermissionFind", "PermissionUpdate", "RecordFind", "RecordDelete", "ScheduleFind", "ScheduleReplace", "ScheduleTrigger", "BusinessExampleQuery", "BusinessExampleSet"].iter().map(|p| p.to_string()).collect::<Vec<_>>();
+    let public_permissions = ["PauseQuery", "PermissionQuery", "BusinessQuery"].iter().map(|p| p.to_string()).collect::<Vec<_>>();
+    let super_permissions = ["PauseQuery", "PauseReplace", "PermissionQuery", "PermissionFind", "PermissionUpdate", "RecordFind", "RecordDelete", "ScheduleFind", "ScheduleReplace", "ScheduleTrigger", "BusinessQuery", "BusinessUpload", "BusinessDelete"].iter().map(|p| p.to_string()).collect::<Vec<_>>();
     let all_permissions = super_permissions.iter().map(|p| if public_permissions.contains(p) { Forbidden(p.clone()) } else { Permitted(p.clone()) }).collect::<Vec<_>>();
 
     // 🚩 1.1 permission permission_query
@@ -46,7 +46,7 @@ fn test_common_apis() {
     assert_eq!(default.permission_update(vec![PermissionUpdatedArg::UpdateUserPermission(alice_identity, Some(vec!["PermissionUpdate".to_string(), "PermissionQuery".to_string()]))]).unwrap(), ());
     assert_eq!(alice.permission_query().unwrap_err().reject_message, "Permission 'PermissionQuery' is required".to_string());
     assert_eq!(default.permission_query().unwrap(), super_permissions);
-    assert_eq!(default.permission_find_by_user(alice_identity).unwrap(), ["PauseQuery", "PermissionUpdate", "BusinessExampleQuery"].iter().map(|p| p.to_string()).collect::<Vec<_>>());
+    assert_eq!(default.permission_find_by_user(alice_identity).unwrap(), ["PauseQuery", "PermissionUpdate", "BusinessQuery"].iter().map(|p| p.to_string()).collect::<Vec<_>>());
     assert_eq!(alice.permission_update(vec![PermissionUpdatedArg::UpdateUserPermission(alice_identity, None)]).unwrap(), ());
     assert_eq!(alice.permission_query().unwrap(), public_permissions);
     assert_eq!(default.permission_query().unwrap(), super_permissions);
@@ -65,7 +65,7 @@ fn test_common_apis() {
     assert_eq!(default.permission_update(vec![PermissionUpdatedArg::UpdateRolePermission("Admin".to_string(), Some(vec!["PauseReplace".to_string(), "PauseQuery".to_string()]))]).unwrap(), ());
     assert!(default.permission_roles_all().unwrap().iter().any(|(role, _)| role == "Admin"));
     assert_eq!(default.permission_update(vec![PermissionUpdatedArg::UpdateUserRole(alice_identity, Some(vec!["Admin".to_string()]))]).unwrap(), ());
-    assert_eq!(alice.permission_query().unwrap(), ["PauseReplace", "PermissionQuery", "BusinessExampleQuery"].iter().map(|p| p.to_string()).collect::<Vec<_>>());
+    assert_eq!(alice.permission_query().unwrap(), ["PauseReplace", "PermissionQuery", "BusinessQuery"].iter().map(|p| p.to_string()).collect::<Vec<_>>());
     assert_eq!(default.permission_update(vec![PermissionUpdatedArg::UpdateUserRole(alice_identity, None)]).unwrap(), ());
     assert_eq!(alice.permission_query().unwrap(), public_permissions);
 
@@ -91,7 +91,7 @@ fn test_common_apis() {
 
     // 🚩 3 record no permission
     assert_eq!(alice.record_topics().unwrap_err().reject_message, "Permission 'RecordFind' is required".to_string());
-    assert_eq!(default.record_topics().unwrap(), ["Example", "CyclesCharge", "Upgrade", "Schedule", "Record", "Permission", "Pause", "Initial"].iter().map(|t| t.to_string()).collect::<Vec<_>>());
+    assert_eq!(default.record_topics().unwrap(), ["UploadFile", "DeleteFile", "CyclesCharge", "Upgrade", "Schedule", "Record", "Permission", "Pause", "Initial"].iter().map(|t| t.to_string()).collect::<Vec<_>>());
     let mut page_data = default.record_find_by_page(QueryPage { page: 1, size: 1 }, Some(RecordSearchArg{ id_range: None, created_at_nanos_range: None, topic: Some(vec!["Pause".to_string()]), content: None, caller: None })).unwrap();
     assert_eq!(page_data.total, 2);
     assert_eq!(page_data.page, 1);
