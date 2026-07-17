@@ -1,5 +1,7 @@
 #!/bin/bash
 
+set -euo pipefail
+
 cargo clippy
 cargo test
 
