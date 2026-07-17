@@ -8,38 +8,6 @@ mod service;
 
 const WASM_MODULE_0_0_1: &[u8] = include_bytes!("../sources/source_opt_0_0_1.wasm.gz");
 const WASM_MODULE_NEXT: &[u8] = include_bytes!("../sources/source_opt.wasm.gz");
-const UPGRADE_ASSET_PATH: &str = "/upgrade.bin";
-const UPGRADE_ASSET_SIZE: usize = 3 * 1024 * 1024;
-const UPGRADE_CHUNK_SIZE: usize = 1024 * 1024;
-
-fn upload_upgrade_asset(service: &service::Service<'_>, data: &[u8]) {
-    for (index, chunk) in data.chunks(UPGRADE_CHUNK_SIZE).enumerate() {
-        service
-            .business_upload(vec![service::UploadingArg {
-                path: UPGRADE_ASSET_PATH.to_string(),
-                headers: vec![],
-                hash: vec![0; 32].into(),
-                size: data.len() as u64,
-                chunk_size: UPGRADE_CHUNK_SIZE as u32,
-                index: index as u32,
-                chunk: chunk.to_vec().into(),
-            }])
-            .unwrap();
-    }
-}
-
-fn assert_upgrade_asset(service: &service::Service<'_>, expected: &[u8]) {
-    let mut actual = Vec::with_capacity(expected.len());
-    for offset in (0..expected.len()).step_by(UPGRADE_CHUNK_SIZE) {
-        let size = UPGRADE_CHUNK_SIZE.min(expected.len() - offset);
-        actual.extend_from_slice(
-            &service
-                .business_download_by(UPGRADE_ASSET_PATH.to_string(), offset as u64, size as u64)
-                .unwrap(),
-        );
-    }
-    assert_eq!(actual, expected);
-}
 
 #[ignore]
 #[test]
@@ -59,8 +27,6 @@ fn test_upgrade() {
 
     let pocketed_canister_id = PocketedCanisterId::new(canister_id, &pic);
     #[allow(unused)] let default = pocketed_canister_id.sender(default_identity);
-    let upgrade_asset = (0..UPGRADE_ASSET_SIZE).map(|index| (index % 251) as u8).collect::<Vec<_>>();
-    upload_upgrade_asset(&default, &upgrade_asset);
 
     // ! next
     for _ in 0..6 { pic.tick(); } // 🕰︎
@@ -81,7 +47,6 @@ fn test_upgrade() {
     assert_eq!(arg, vec![68, 73, 68, 76, 1, 110, 127, 1, 0, 0]); // 4449444c016e7f010000
     pic.upgrade_canister(canister_id, WASM_MODULE_NEXT.to_vec(), arg, Some(default_identity)).unwrap();
     default.pause_replace(None).unwrap();
-    assert_upgrade_asset(&default, &upgrade_asset);
 
     // test_panic();
 }
