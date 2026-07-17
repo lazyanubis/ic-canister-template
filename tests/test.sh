@@ -1,4 +1,6 @@
 #!/usr/bin/env bash
+set -euo pipefail
+
 start_time=$(date +%H:%M:%S)
 start_time_s=$(date +%s)
 
