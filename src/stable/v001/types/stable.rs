@@ -1,7 +1,7 @@
 use ic_canister_kit::stable;
 use ic_canister_kit::types::*;
 
-use super::SliceOfHashDigest;
+pub(super) type SliceOfHashDigest = [u8; 4 + 32];
 
 const MEMORY_ID_ASSETS: MemoryId = MemoryId::new(0); // 存放实际文件，hash 为键
 

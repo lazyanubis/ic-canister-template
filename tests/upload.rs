@@ -196,7 +196,7 @@ fn load_local_files(prefix: &str, dir_path: &str, files: &mut Vec<LocalFile>) {
 
         if file_type.is_file() {
             let mut file = load_local_file(&path);
-            file.path = (file.path[prefix.len()..]).to_string();
+            file.path = file.path[prefix.len()..].to_string();
             files.push(file);
         } else if file_type.is_dir() {
             // 目录还需要进行递归
@@ -234,7 +234,7 @@ fn load_local_file(path: &str) -> LocalFile {
     }
 }
 
-fn do_hash(data: &Vec<u8>) -> String {
+fn do_hash(data: &[u8]) -> String {
     use sha2::Digest;
     let mut hasher = sha2::Sha256::new();
     hasher.update(data);
@@ -354,21 +354,21 @@ fn load_remote_files() -> Vec<RemoteFile> {
 
 fn parse_remote_files(output: String) -> Vec<RemoteFile> {
     let output = output.trim();
-    let output = (output[6..(output.len() - 2)]).to_string();
+    let output = output[6..(output.len() - 2)].to_string();
     let output = output.trim();
 
     if output.is_empty() {
         return vec![];
     }
 
-    let output = (output[9..(output.len() - 4)]).to_string();
+    let output = output[9..(output.len() - 4)].to_string();
     let output = output.trim();
 
     let mut files = vec![];
     let splitted = output.split("};}; record { ");
     for content in splitted {
         // 解析 created
-        let content = (content[10..]).to_string();
+        let content = content[10..].to_string();
         let created: u64 = content
             .split(r#" : int; modified = "#)
             .next()
@@ -393,7 +393,7 @@ fn parse_remote_files(output: String) -> Vec<RemoteFile> {
         content.next();
         let content = content.next().unwrap();
         // 解析 hash
-        let hash = (content[0..64]).to_string();
+        let hash = content[0..64].to_string();
         let mut content = content.split(r#""; path = ""#);
         content.next();
         let content = content.next().unwrap();
@@ -589,7 +589,7 @@ fn do_upload_file(local_files: &[UploadFile], index: usize) {
                     file.file.size,
                     file.chunk_size,
                     file.index,
-                    (file.file.data[file.offset..file.offset_end]).iter().map(|u|format!("{}:nat8", u)).collect::<Vec<String>>().join(";")
+                    file.file.data[file.offset..file.offset_end].iter().map(|u|format!("{}:nat8", u)).collect::<Vec<String>>().join(";")
                 )
             })
             .collect::<Vec<String>>()

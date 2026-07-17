@@ -1,12 +1,10 @@
-use std::collections::HashSet;
-
 use candid::CandidType;
 use ic_canister_kit::types::*;
 use serde::{Deserialize, Serialize};
 
 use crate::stable::v001::types::init_assets_data;
 
-use super::{HashDigest, SliceOfHashDigest};
+use super::{HashDigest, stable::SliceOfHashDigest};
 
 // ============================== 文件数据 ==============================
 
@@ -44,14 +42,12 @@ impl AssetData {
         }
 
         // 插入数据
+        let mut assets = init_assets_data();
         for (key, offset, size) in index {
             let offset = offset as usize;
             let size = size as usize;
             let data = data[offset..offset + size].to_vec();
-            ic_cdk::futures::spawn(async move {
-                let mut assets = init_assets_data();
-                assets.insert(key, data);
-            });
+            assets.insert(key, data);
         }
 
         // 返回空对象
@@ -127,21 +123,23 @@ pub struct AssetFile {
     pub size: u64,
 }
 
-#[derive(CandidType, Serialize, Deserialize, Debug, Clone, Default)]
-pub struct HashedPath(pub(super) HashSet<String>);
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     #[test]
-    fn removes_all_stable_chunks_for_an_asset() {
+    fn stores_reads_and_removes_all_stable_chunks_for_an_asset() {
         let hash = HashDigest([42; 32]);
-        let mut assets = init_assets_data();
-        assets.insert(get_key(&hash, 0), vec![1; 4]);
-        assets.insert(get_key(&hash, 1), vec![2; 4]);
+        let mut data = vec![1; MAX_BUCKET_SIZE as usize];
+        data.extend_from_slice(&[2, 3, 4]);
+        let asset = AssetData::from(&hash, data.clone());
 
-        AssetData::remove(&hash, MAX_BUCKET_SIZE + 1);
+        assert_eq!(
+            asset.slice(&hash, data.len() as u64, MAX_BUCKET_SIZE as usize - 2, 5),
+            &data[MAX_BUCKET_SIZE as usize - 2..MAX_BUCKET_SIZE as usize + 3]
+        );
+
+        AssetData::remove(&hash, data.len() as u64);
 
         let assets = init_assets_data();
         assert!(assets.get(&get_key(&hash, 0)).is_none());

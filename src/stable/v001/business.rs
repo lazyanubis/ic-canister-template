@@ -8,7 +8,6 @@ impl Business for InnerState {
     fn business_files(&self) -> Vec<QueryFile> {
         self.files()
     }
-
     fn business_download(&self, path: String) -> Vec<u8> {
         self.download(path)
     }

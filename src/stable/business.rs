@@ -33,7 +33,6 @@ pub(super) mod immutable {
         fn business_files(&self) -> Vec<crate::stable::QueryFile> {
             ic_cdk::trap("Not supported operation by this version.")
         }
-
         fn business_download(&self, path: String) -> Vec<u8> {
             ic_cdk::trap("Not supported operation by this version.")
         }
@@ -58,7 +57,6 @@ pub(super) mod immutable {
         fn business_files(&self) -> Vec<QueryFile> {
             self.get().business_files()
         }
-
         fn business_download(&self, path: String) -> Vec<u8> {
             self.get().business_download(path)
         }

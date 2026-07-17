@@ -1,6 +1,7 @@
 #!/bin/bash
 
 cargo clippy
+cargo test
 
 # 部署代码
 # dfx deploy --network ic storage --mode=reinstall --yes
@@ -17,4 +18,4 @@ dfx canister --network local call storage pause_replace "(null)"
 dfx canister --network local call storage business_hashed_update "(true)"
 
 # 上传资源文件
-RUST_BACKTRACE=1 cargo test upload -- --nocapture
+RUST_BACKTRACE=1 cargo test upload -- --ignored --nocapture

@@ -27,7 +27,7 @@ fn business_hashed_update(hashed: bool) {
     let arg_content = format!("set hashed: {old} -> {hashed}",); // * 记录参数内容
 
     with_mut_state(
-        |s, _done| {
+        |s, _result| {
             s.business_hashed_update(hashed);
         },
         caller,
@@ -70,7 +70,7 @@ fn business_upload(args: Vec<UploadingArg>) {
     ); // * 记录参数内容
 
     with_mut_state(
-        |s, _done| {
+        |s, _result| {
             s.business_upload(args);
         },
         caller,
@@ -89,7 +89,7 @@ fn business_delete(names: Vec<String>) {
     let arg_content = format!("delete file: [{}]", names.join(", ")); // * 记录参数内容
 
     with_mut_state(
-        |s, _done| {
+        |s, _result| {
             s.business_delete(names);
         },
         caller,
