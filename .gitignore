@@ -6,6 +6,6 @@ source_opt_*.wasm.gz
 source_opt.wasm.gz
 AGENTS.md
 .codex
+assets/
 assets-test/
 .args.*
-assets/
