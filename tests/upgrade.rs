@@ -32,9 +32,7 @@ fn test_upgrade() {
     for _ in 0..6 { pic.tick(); } // 🕰︎
     let arg: Vec<u8> = encode_one(None::<()>).unwrap();
     assert_eq!(arg, vec![68, 73, 68, 76, 1, 110, 127, 1, 0, 0]); // 4449444c016e7f010000
-    let reject = pic
-        .upgrade_canister(canister_id, WASM_MODULE_NEXT.to_vec(), arg, Some(default_identity))
-        .unwrap_err();
+    let reject = pic.upgrade_canister(canister_id, WASM_MODULE_NEXT.to_vec(), arg, Some(default_identity)).unwrap_err();
     assert_eq!(reject.reject_code, RejectCode::CanisterError);
     assert!(reject.reject_message.contains(&format!("Error from Canister {canister_id}:")));
     assert!(reject.reject_message.contains("Canister is running. Not paused."));
