@@ -100,3 +100,13 @@ metadata、shrink 并 gzip。
 - `tests/test.sh` 在缺少 `sources/source_opt_0_0_1.wasm.gz` 时会把当前 Wasm 复制为旧版占位文件。验证真实
   跨版本迁移前，必须确认该 fixture 确实来自目标旧版本。
 - `deploy.sh` 会直接操作 `--network ic` 上的 Canister，不应作为普通本地验证命令运行。
+
+## 拉取
+
+```bash
+git remote add service git@ssh.github.com:lazyanubis/ic-canister-template.git && \
+git remote set-url --push service DISABLE && \
+git config --replace-all remote.service.fetch '+refs/heads/service:refs/remotes/service/service' && \
+git fetch --prune service && \
+git remote set-head service service
+```
