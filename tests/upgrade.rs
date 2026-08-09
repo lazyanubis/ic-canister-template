@@ -36,6 +36,7 @@ fn test_upgrade() {
         .upgrade_canister(canister_id, WASM_MODULE_NEXT.to_vec(), arg, Some(default_identity))
         .unwrap_err();
     assert_eq!(reject.reject_code, RejectCode::CanisterError);
+    assert!(reject.reject_message.contains(&format!("Error from Canister {canister_id}:")));
     assert!(reject.reject_message.contains("Canister is running. Not paused."));
     assert_eq!(reject.error_code, ErrorCode::CanisterCalledTrap);
     assert!(reject.certified);
